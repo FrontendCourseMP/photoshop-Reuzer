@@ -8,6 +8,7 @@ import { ToolBar } from './components/ToolBar';
 import { ImageCanvas } from './components/ImageCanvas';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { InfoPanel } from './components/InfoPanel';
+import { LevelsDialog } from './components/LevelsDialog';
 import { handleImageFile, downloadImage } from './utils/fileHandler';
 
 const darkTheme = createTheme({
@@ -17,9 +18,7 @@ const darkTheme = createTheme({
   },
 });
 
-// Memoize stable components
 const MemoizedInfoPanel = memo(InfoPanel);
-const MemoizedToolBar = memo(ToolBar);
 
 function App() {
   const { 
@@ -28,11 +27,15 @@ function App() {
     displayImageData, 
     channels, 
     toggleChannel,
+    levelsSettings,
+    setLevelsSettings,
+    histograms,
     isProcessing
   } = useImageProcessor();
 
   const [imageInfo, setImageInfo] = useState({ width: 0, height: 0, depth: 0 });
   const [isEyedropperActive, setIsEyedropperActive] = useState(false);
+  const [isLevelsOpen, setIsLevelsOpen] = useState(false);
   const [pickedPixel, setPickedPixel] = useState<{ x: number, y: number, r: number, g: number, b: number, a: number } | null>(null);
 
   const onFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -76,11 +79,12 @@ function App() {
       <CssBaseline />
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         
-        <MemoizedToolBar 
+        <ToolBar 
           onFileUpload={onFileUpload}
           onDownload={onDownload}
           isEyedropperActive={isEyedropperActive}
           onToggleEyedropper={toggleEyedropper}
+          onOpenLevels={() => setIsLevelsOpen(true)}
           hasImage={!!originalImageData}
         />
 
@@ -103,6 +107,14 @@ function App() {
             pickedPixel={pickedPixel}
           />
         </Box>
+
+        <LevelsDialog 
+          open={isLevelsOpen}
+          onClose={() => setIsLevelsOpen(false)}
+          onApply={setLevelsSettings}
+          currentSettings={levelsSettings}
+          histograms={histograms}
+        />
 
       </Box>
     </ThemeProvider>

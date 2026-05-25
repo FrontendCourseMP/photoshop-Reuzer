@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { Box, Typography, Paper, Checkbox } from '@mui/material';
 import type { ChannelState } from '../hooks/useImageProcessor';
 

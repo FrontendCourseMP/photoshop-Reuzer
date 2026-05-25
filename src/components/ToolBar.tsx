@@ -3,12 +3,14 @@ import { AppBar, Toolbar, Button, ButtonGroup, IconButton, Tooltip } from '@mui/
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import DownloadIcon from '@mui/icons-material/Download';
 import ColorizeIcon from '@mui/icons-material/Colorize';
+import LayersIcon from '@mui/icons-material/Layers';
 
 interface ToolBarProps {
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: (format: 'png' | 'jpg' | 'gb7') => void;
   isEyedropperActive: boolean;
   onToggleEyedropper: () => void;
+  onOpenLevels: () => void;
   hasImage: boolean;
 }
 
@@ -17,6 +19,7 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   onDownload, 
   isEyedropperActive, 
   onToggleEyedropper,
+  onOpenLevels,
   hasImage
 }) => {
   return (
@@ -41,6 +44,15 @@ export const ToolBar: React.FC<ToolBarProps> = ({
             sx={{ border: isEyedropperActive ? '1px solid' : 'none' }}
           >
             <ColorizeIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Уровни">
+          <IconButton 
+            onClick={onOpenLevels}
+            disabled={!hasImage}
+          >
+            <LayersIcon />
           </IconButton>
         </Tooltip>
       </Toolbar>
