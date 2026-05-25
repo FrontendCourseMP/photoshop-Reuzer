@@ -11,35 +11,41 @@ export function decodeGB7(buffer: ArrayBuffer): ImageData {
   }
 
   // 2. Чтение заголовка
-  // const version = dataView.getUint8(4); // 0x01, пока не используем строго
   const flags = dataView.getUint8(5);
-  const hasMask = (flags & 0x01) === 1; // Бит 0
-  const width = dataView.getUint16(6, false); // Big Endian
-  const height = dataView.getUint16(8, false); // Big Endian
+  const hasAlpha = (flags & 0x01) !== 0; 
+  const isColor = (flags & 0x02) !== 0;
+  const width = dataView.getUint16(6, false);
+  const height = dataView.getUint16(8, false);
 
   // 3. Чтение данных
   const pixelsOffset = 12;
   const pixels = new Uint8Array(buffer, pixelsOffset);
   const imageData = new ImageData(width, height);
 
-  for (let i = 0; i < width * height; i++) {
-    const byte = pixels[i];
-    const gray7 = byte & 0x7F; // Младшие 7 бит
-    const maskBit = (byte & 0x80) >> 7; // Старший бит (MSB)
+  if (isColor) {
+    const bytesPerPixel = hasAlpha ? 4 : 3;
+    for (let i = 0; i < width * height; i++) {
+      const srcIndex = i * bytesPerPixel;
+      const destIndex = i * 4;
+      
+      imageData.data[destIndex] = pixels[srcIndex];     // R
+      imageData.data[destIndex + 1] = pixels[srcIndex + 1]; // G
+      imageData.data[destIndex + 2] = pixels[srcIndex + 2]; // B
+      imageData.data[destIndex + 3] = hasAlpha ? pixels[srcIndex + 3] : 255; // A
+    }
+  } else {
+    // Legacy grayscale support
+    for (let i = 0; i < width * height; i++) {
+      const byte = pixels[i];
+      const gray7 = byte & 0x7F;
+      const maskBit = (byte & 0x80) >> 7;
+      const gray8 = Math.round((gray7 / 127) * 255);
 
-    // Масштабируем 7-битный серый (0-127) в 8-битный (0-255) для Canvas
-    const gray8 = Math.round((gray7 / 127) * 255);
-
-    const rgbaIndex = i * 4;
-    imageData.data[rgbaIndex] = gray8;     // R
-    imageData.data[rgbaIndex + 1] = gray8; // G
-    imageData.data[rgbaIndex + 2] = gray8; // B
-    
-    // Альфа-канал
-    if (hasMask) {
-      imageData.data[rgbaIndex + 3] = maskBit === 1 ? 255 : 0;
-    } else {
-      imageData.data[rgbaIndex + 3] = 255;
+      const rgbaIndex = i * 4;
+      imageData.data[rgbaIndex] = gray8;
+      imageData.data[rgbaIndex + 1] = gray8;
+      imageData.data[rgbaIndex + 2] = gray8;
+      imageData.data[rgbaIndex + 3] = hasAlpha ? (maskBit === 1 ? 255 : 0) : 255;
     }
   }
 
@@ -48,7 +54,11 @@ export function decodeGB7(buffer: ArrayBuffer): ImageData {
 
 export function encodeGB7(imageData: ImageData): ArrayBuffer {
   const { width, height, data } = imageData;
-  const buffer = new ArrayBuffer(12 + width * height);
+  
+  // Всегда сохраняем в цвете, как просил пользователь
+  // Используем 4 байта на пиксель (RGBA) для простоты и полноты данных
+  const bytesPerPixel = 4;
+  const buffer = new ArrayBuffer(12 + width * height * bytesPerPixel);
   const dataView = new DataView(buffer);
   const uint8Array = new Uint8Array(buffer);
 
@@ -58,45 +68,17 @@ export function encodeGB7(imageData: ImageData): ArrayBuffer {
   // 2. Версия
   dataView.setUint8(4, 0x01);
 
-  // 3. Проверяем, нужна ли маска (есть ли прозрачные пиксели)
-  let needsMask = false;
-  for (let i = 3; i < data.length; i += 4) {
-    if (data[i] < 255) {
-      needsMask = true;
-      break;
-    }
-  }
+  // 3. Флаги (0x01 - alpha, 0x02 - color)
+  dataView.setUint8(5, 0x01 | 0x02);
   
-  // Запись флагов (Бит 0 = маска)
-  dataView.setUint8(5, needsMask ? 0x01 : 0x00);
-  
-  // Запись ширины и высоты (Big Endian)
+  // 4. Размеры
   dataView.setUint16(6, width, false);
   dataView.setUint16(8, height, false);
-  
-  // Резервные 2 байта уже заполнены нулями (ArrayBuffer инициализируется нулями)
 
-  // 4. Запись данных
+  // 5. Данные (RGBA)
   const pixelsOffset = 12;
-  for (let i = 0; i < width * height; i++) {
-    const r = data[i * 4];
-    const g = data[i * 4 + 1];
-    const b = data[i * 4 + 2];
-    const a = data[i * 4 + 3];
-
-    // Формула яркости (оттенки серого)
-    const gray8 = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-    
-    // Масштабируем 8 бит в 7 бит
-    const gray7 = Math.round((gray8 / 255) * 127);
-    let byte = gray7 & 0x7F;
-
-    if (needsMask) {
-      const maskBit = a > 127 ? 1 : 0;
-      byte |= (maskBit << 7); // Записываем в MSB
-    }
-
-    uint8Array[pixelsOffset + i] = byte;
+  for (let i = 0; i < width * height * 4; i++) {
+    uint8Array[pixelsOffset + i] = data[i];
   }
 
   return buffer;
