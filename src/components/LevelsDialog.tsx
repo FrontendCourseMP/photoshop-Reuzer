@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Box, Button, Typography, Select, MenuItem, FormControl, 
-  InputLabel, Checkbox, FormControlLabel, Slider, IconButton, Paper, Divider
+  Box, Button, Typography, Checkbox, FormControlLabel, Slider, IconButton, Paper, Divider
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import type { FilterSettings, LevelsSettings } from '../hooks/useImageProcessor';
+import type { FilterSettings, HistogramData, LevelsSettings } from '../hooks/useImageProcessor';
 import { INITIAL_LEVELS } from '../hooks/useImageProcessor';
 
 interface LevelsDialogProps {
@@ -12,7 +11,7 @@ interface LevelsDialogProps {
   onClose: () => void;
   onApply: (settings: FilterSettings) => void;
   currentSettings: FilterSettings;
-  histograms: any;
+  histograms: HistogramData | null;
 }
 
 export const LevelsDialog: React.FC<LevelsDialogProps> = ({ 
@@ -93,7 +92,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
     if (!histograms || !histograms[selectedChannel]) return [];
     const data = histograms[selectedChannel];
     const max = Math.max(...data);
-    return Array.from(data).map((val: any) => {
+    return Array.from(data).map((val) => {
         if (isLogScale) {
             return val > 0 ? Math.log(val) / Math.log(max) : 0;
         }
@@ -186,7 +185,9 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
             <Typography variant="caption" sx={{ display: 'block' }}>Гамма (нелинейная коррекция)</Typography>
             <Slider
                 value={currentChannelSettings.gamma}
-                onChange={(_, val: any) => updateChannelSetting('gamma', val)}
+                onChange={(_, val) => {
+                  if (typeof val === 'number') updateChannelSetting('gamma', val);
+                }}
                 min={0.1}
                 max={9.9}
                 step={0.1}

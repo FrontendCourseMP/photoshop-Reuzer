@@ -21,6 +21,8 @@ export interface FilterSettings {
   a: LevelsSettings;
 }
 
+export type HistogramData = Record<keyof FilterSettings, Uint32Array>;
+
 export const INITIAL_LEVELS: LevelsSettings = { black: 0, white: 255, gamma: 1.0 };
 export const INITIAL_FILTER: FilterSettings = {
   master: { ...INITIAL_LEVELS },
@@ -35,7 +37,7 @@ export function useImageProcessor() {
   const [displayImageData, setDisplayImageData] = useState<ImageData | null>(null);
   const [channels, setChannels] = useState<ChannelState>({ r: true, g: true, b: true, a: true });
   const [levelsSettings, setLevelsSettings] = useState<FilterSettings>(INITIAL_FILTER);
-  const [histograms, setHistograms] = useState<any>(null);
+  const [histograms, setHistograms] = useState<HistogramData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
   const workerRef = useRef<Worker | null>(null);
@@ -70,7 +72,7 @@ export function useImageProcessor() {
   useEffect(() => {
     workerRef.current = new Worker(new URL('./imageWorker.ts', import.meta.url), { type: 'module' });
     
-    workerRef.current.onmessage = (e: MessageEvent) => {
+    workerRef.current.onmessage = (e: MessageEvent<{ imageData: ImageData | null; histograms: HistogramData | null }>) => {
       const { imageData, histograms } = e.data;
       if (imageData) setDisplayImageData(imageData);
       if (histograms) setHistograms(histograms);
@@ -109,18 +111,22 @@ export function useImageProcessor() {
     }
   }, [sendToWorker]);
 
-  useEffect(() => {
-    if (!originalImageData) {
-        setDisplayImageData(null);
-        setHistograms(null);
-        return;
+  const updateOriginalImageData = useCallback((imageData: ImageData | null) => {
+    setOriginalImageData(imageData);
+    if (!imageData) {
+      setDisplayImageData(null);
+      setHistograms(null);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!originalImageData) return;
     applySettings(levelsSettings, true);
   }, [originalImageData, channels, levelsSettings, applySettings]);
 
   return {
     originalImageData,
-    setOriginalImageData,
+    setOriginalImageData: updateOriginalImageData,
     displayImageData,
     channels,
     toggleChannel,

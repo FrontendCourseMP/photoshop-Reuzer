@@ -1,18 +1,46 @@
-/* eslint-disable no-restricted-globals */
-
 interface LevelsSettings {
   black: number;
   white: number;
   gamma: number;
 }
 
-const ctx: Worker = self as any;
+interface ChannelState {
+  r: boolean;
+  g: boolean;
+  b: boolean;
+  a: boolean;
+}
 
-ctx.onmessage = (e: MessageEvent) => {
+interface FilterSettings {
+  master: LevelsSettings;
+  r: LevelsSettings;
+  g: LevelsSettings;
+  b: LevelsSettings;
+  a: LevelsSettings;
+}
+
+type HistogramData = Record<keyof FilterSettings, Uint32Array>;
+
+interface WorkerImageData {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+interface ImageWorkerRequest {
+  imageData: WorkerImageData;
+  channels: ChannelState;
+  levelsSettings: FilterSettings | null;
+  computeHistogram: boolean;
+}
+
+const ctx = self as unknown as Worker;
+
+ctx.onmessage = (e: MessageEvent<ImageWorkerRequest>) => {
   const { imageData, channels, levelsSettings, computeHistogram } = e.data;
   const { width, height, data } = imageData;
   
-  let resultImageData = null;
+  let resultImageData: ImageData | null = null;
 
   // 1. Apply Levels if requested
   if (levelsSettings) {
@@ -55,7 +83,7 @@ ctx.onmessage = (e: MessageEvent) => {
   }
 
   // 3. Compute Histogram if requested
-  let histograms = null;
+  let histograms: HistogramData | null = null;
   if (computeHistogram) {
     histograms = {
       r: new Uint32Array(256),
