@@ -5,6 +5,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import type { ImageInfo } from '../types/image';
 
 interface ToolBarProps {
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -13,7 +14,7 @@ interface ToolBarProps {
   onToggleEyedropper: () => void;
   onOpenLevels: () => void;
   hasImage: boolean;
-  imageInfo: { width: number; height: number; depth: number };
+  imageInfo: ImageInfo;
 }
 
 export const ToolBar: React.FC<ToolBarProps> = ({ 
@@ -72,7 +73,7 @@ export const ToolBar: React.FC<ToolBarProps> = ({
           size="small"
           color={hasImage ? 'primary' : 'default'}
           variant={hasImage ? 'outlined' : 'filled'}
-          label={hasImage ? `${imageInfo.width}×${imageInfo.height} · ${imageInfo.depth} bit` : 'Нет файла'}
+          label={hasImage ? `${imageInfo.width}×${imageInfo.height} · ${imageInfo.depthLabel}` : 'Нет файла'}
           sx={{
             display: { xs: 'none', md: 'inline-flex' },
             minWidth: 96,

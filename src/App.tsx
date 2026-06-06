@@ -9,7 +9,9 @@ import { ImageCanvas } from './components/ImageCanvas';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { InfoPanel } from './components/InfoPanel';
 import { LevelsDialog } from './components/LevelsDialog';
+import { StatusBar } from './components/StatusBar';
 import { handleImageFile, downloadImage } from './utils/fileHandler';
+import { EMPTY_IMAGE_INFO } from './types/image';
 
 const darkTheme = createTheme({
   palette: {
@@ -51,7 +53,7 @@ function App() {
     isProcessing
   } = useImageProcessor();
 
-  const [imageInfo, setImageInfo] = useState({ width: 0, height: 0, depth: 0 });
+  const [imageInfo, setImageInfo] = useState(EMPTY_IMAGE_INFO);
   const [isEyedropperActive, setIsEyedropperActive] = useState(false);
   const [isLevelsOpen, setIsLevelsOpen] = useState(false);
   const [pickedPixel, setPickedPixel] = useState<{ x: number, y: number, r: number, g: number, b: number, a: number } | null>(null);
@@ -62,9 +64,9 @@ function App() {
 
     handleImageFile(
       file,
-      (imageData, depth) => {
+      (imageData, info) => {
         setOriginalImageData(imageData);
-        setImageInfo({ width: imageData.width, height: imageData.height, depth });
+        setImageInfo(info);
         setPickedPixel(null);
       },
       (error) => alert(error)
@@ -74,7 +76,11 @@ function App() {
 
   const onDownload = useCallback((format: 'png' | 'jpg' | 'gb7') => {
     if (displayImageData) {
-      downloadImage(displayImageData, format);
+      try {
+        downloadImage(displayImageData, format);
+      } catch (error) {
+        alert((error as Error).message);
+      }
     }
   }, [displayImageData]);
 
@@ -172,6 +178,12 @@ function App() {
           onApply={setLevelsSettings}
           currentSettings={levelsSettings}
           histograms={histograms}
+        />
+
+        <StatusBar 
+          imageInfo={imageInfo}
+          isProcessing={isProcessing}
+          hasImage={!!originalImageData}
         />
 
       </Box>

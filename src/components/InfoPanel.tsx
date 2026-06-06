@@ -4,9 +4,10 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import { rgbToLab } from '../utils/colorSpace';
+import type { ImageInfo } from '../types/image';
 
 interface InfoPanelProps {
-  imageInfo: { width: number; height: number; depth: number };
+  imageInfo: ImageInfo;
   pickedPixel: { x: number; y: number; r: number; g: number; b: number; a: number } | null;
 }
 
@@ -45,7 +46,9 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ imageInfo, pickedPixel }) 
           <Stack spacing={1}>
             <InfoRow label="Ширина" value={`${imageInfo.width}px`} />
             <InfoRow label="Высота" value={`${imageInfo.height}px`} />
-            <InfoRow label="Глубина" value={`${imageInfo.depth} bit`} />
+            <InfoRow label="Глубина" value={imageInfo.depthLabel} />
+            <InfoRow label="Формат" value={imageInfo.format} />
+            {imageInfo.hasMask && <InfoRow label="Маска" value="есть" />}
           </Stack>
         ) : (
           <Typography variant="body2" color="text.secondary">Нет активного изображения</Typography>
