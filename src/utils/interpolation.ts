@@ -21,6 +21,7 @@ export const INTERPOLATION_OPTIONS: InterpolationOption[] = [
 
 export const MIN_VIEW_SCALE = 12;
 export const MAX_VIEW_SCALE = 300;
+const INITIAL_FIT_FILL_RATIO = 0.72;
 
 export function resizeImageData(
   source: ImageData,
@@ -63,7 +64,9 @@ export function calculateFitScale(
 
   const availableWidth = Math.max(1, viewportWidth - padding * 2);
   const availableHeight = Math.max(1, viewportHeight - padding * 2);
-  const scale = Math.min(availableWidth / imageWidth, availableHeight / imageHeight) * 100;
+  const targetWidth = availableWidth * INITIAL_FIT_FILL_RATIO;
+  const targetHeight = availableHeight * INITIAL_FIT_FILL_RATIO;
+  const scale = Math.min(targetWidth / imageWidth, targetHeight / imageHeight) * 100;
 
   return clampViewScale(scale);
 }

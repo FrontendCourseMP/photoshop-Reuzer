@@ -32,7 +32,7 @@ export const ImageCanvas = memo(({
 }: ImageCanvasProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lastAutoFitKeyRef = useRef<number | null>(null);
+  const lastAutoFitKeyRef = useRef<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const renderImageData = useMemo(() => {
@@ -65,9 +65,10 @@ export const ImageCanvas = memo(({
 
   useEffect(() => {
     if (!imageData || viewportSize.width <= 0 || viewportSize.height <= 0) return;
-    if (lastAutoFitKeyRef.current === autoFitKey) return;
+    const nextAutoFitKey = `${autoFitKey}:${imageData.width}x${imageData.height}`;
+    if (lastAutoFitKeyRef.current === nextAutoFitKey) return;
 
-    lastAutoFitKeyRef.current = autoFitKey;
+    lastAutoFitKeyRef.current = nextAutoFitKey;
     onScaleChange(calculateFitScale(imageData.width, imageData.height, viewportSize.width, viewportSize.height));
   }, [autoFitKey, imageData, onScaleChange, viewportSize.height, viewportSize.width]);
 
@@ -107,57 +108,55 @@ export const ImageCanvas = memo(({
   };
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       flexGrow: 1, 
       overflow: 'auto', 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center',
       bgcolor: '#111216',
       backgroundImage: 'linear-gradient(0deg, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
       backgroundSize: '32px 32px',
-      p: { xs: 1.5, md: 3 },
       cursor: isEyedropperActive ? 'crosshair' : 'default',
       position: 'relative'
     }} ref={rootRef}>
       {!imageData && (
-        <Stack
-          spacing={2}
-          sx={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 'min(520px, 100%)',
-            minHeight: 300,
-            border: '1px dashed',
-            borderColor: 'rgba(255,255,255,0.18)',
-            borderRadius: 2,
-            bgcolor: 'rgba(27,29,34,0.72)',
-            color: 'text.secondary',
-            px: 3,
-            textAlign: 'center',
-          }}
-        >
-          <Box sx={{
-            width: 72,
-            height: 72,
-            borderRadius: 2,
-            display: 'grid',
-            placeItems: 'center',
-            bgcolor: 'rgba(46,211,183,0.1)',
-            color: 'primary.main',
-            border: '1px solid rgba(46,211,183,0.25)',
-          }}>
-            <ImageOutlinedIcon sx={{ fontSize: 36 }} />
-          </Box>
-          <Box>
-            <Typography variant="h6" color="text.primary" sx={{ fontWeight: 800 }}>
-              Откройте изображение
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              PNG, JPG или GB7
-            </Typography>
-          </Box>
-        </Stack>
+        <Box sx={{ minWidth: '100%', minHeight: '100%', p: { xs: 1.5, md: 3 }, display: 'grid', placeItems: 'center' }}>
+          <Stack
+            spacing={2}
+            sx={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 'min(520px, 100%)',
+              minHeight: 300,
+              border: '1px dashed',
+              borderColor: 'rgba(255,255,255,0.18)',
+              borderRadius: 2,
+              bgcolor: 'rgba(27,29,34,0.72)',
+              color: 'text.secondary',
+              px: 3,
+              textAlign: 'center',
+            }}
+          >
+            <Box sx={{
+              width: 72,
+              height: 72,
+              borderRadius: 2,
+              display: 'grid',
+              placeItems: 'center',
+              bgcolor: 'rgba(46,211,183,0.1)',
+              color: 'primary.main',
+              border: '1px solid rgba(46,211,183,0.25)',
+            }}>
+              <ImageOutlinedIcon sx={{ fontSize: 36 }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" color="text.primary" sx={{ fontWeight: 800 }}>
+                Откройте изображение
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                PNG, JPG или GB7
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
       )}
 
       {isProcessing && (
@@ -178,40 +177,50 @@ export const ImageCanvas = memo(({
       )}
 
       {imageData && renderImageData && (
-        <Box sx={{ position: 'relative' }}>
-          <canvas 
-            ref={canvasRef} 
-            onClick={handleMouseClick}
-            style={{ 
-              display: 'block',
-              boxShadow: '0 22px 55px rgba(0,0,0,0.42)',
-              opacity: isProcessing ? 0.78 : 1,
-              border: '1px solid rgba(255,255,255,0.14)',
-              borderRadius: 6,
-              backgroundColor: '#2d3036',
-              backgroundImage: 'linear-gradient(45deg, #25272d 25%, transparent 25%), linear-gradient(-45deg, #25272d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #25272d 75%), linear-gradient(-45deg, transparent 75%, #25272d 75%)',
-              backgroundSize: '20px 20px',
-              backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-            }} 
-          />
-
-          <Stack direction="row" spacing={1} sx={{ position: 'absolute', left: 10, bottom: 10 }}>
-            <Chip
-              size="small"
-              label={`${scalePercent}% · ${renderImageData.width}×${renderImageData.height}`}
-              sx={{ bgcolor: 'rgba(17,18,22,0.82)', border: '1px solid rgba(255,255,255,0.14)' }}
+        <Box sx={{
+          width: 'max-content',
+          minWidth: '100%',
+          height: 'max-content',
+          minHeight: '100%',
+          p: { xs: 1.5, md: 3 },
+          display: 'grid',
+          placeItems: 'center',
+        }}>
+          <Box sx={{ position: 'relative', width: 'max-content' }}>
+            <canvas
+              ref={canvasRef}
+              onClick={handleMouseClick}
+              style={{
+                display: 'block',
+                boxShadow: '0 22px 55px rgba(0,0,0,0.42)',
+                opacity: isProcessing ? 0.78 : 1,
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 6,
+                backgroundColor: '#2d3036',
+                backgroundImage: 'linear-gradient(45deg, #25272d 25%, transparent 25%), linear-gradient(-45deg, #25272d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #25272d 75%), linear-gradient(-45deg, transparent 75%, #25272d 75%)',
+                backgroundSize: '20px 20px',
+                backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+              }}
             />
-            {isEyedropperActive && (
+
+            <Stack direction="row" spacing={1} sx={{ position: 'absolute', left: 10, bottom: 10 }}>
               <Chip
                 size="small"
-                icon={<ColorizeIcon />}
-                label="Пипетка"
-                color="primary"
-                variant="outlined"
-                sx={{ bgcolor: 'rgba(17,18,22,0.82)' }}
+                label={`${scalePercent}% · ${renderImageData.width}×${renderImageData.height}`}
+                sx={{ bgcolor: 'rgba(17,18,22,0.82)', border: '1px solid rgba(255,255,255,0.14)' }}
               />
-            )}
-          </Stack>
+              {isEyedropperActive && (
+                <Chip
+                  size="small"
+                  icon={<ColorizeIcon />}
+                  label="Пипетка"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ bgcolor: 'rgba(17,18,22,0.82)' }}
+                />
+              )}
+            </Stack>
+          </Box>
         </Box>
       )}
     </Box>

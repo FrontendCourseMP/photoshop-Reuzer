@@ -18,6 +18,10 @@ import {
   clampViewScale,
   type InterpolationMethod,
 } from './utils/interpolation';
+import { applyLevelsToImageData } from './utils/levels';
+import { applyKernelFilterToImageData } from './utils/kernelFilter';
+import type { FilterSettings } from './hooks/useImageProcessor';
+import type { KernelFilterSettings } from './types/kernelFilter';
 
 const darkTheme = createTheme({
   palette: {
@@ -46,6 +50,10 @@ const darkTheme = createTheme({
 
 const MemoizedInfoPanel = memo(InfoPanel);
 
+const cloneImageData = (imageData: ImageData): ImageData => {
+  return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
+};
+
 function App() {
   const { 
     originalImageData, 
@@ -63,6 +71,7 @@ function App() {
   } = useImageProcessor();
 
   const [imageInfo, setImageInfo] = useState(EMPTY_IMAGE_INFO);
+  const [sourceImageData, setSourceImageData] = useState<ImageData | null>(null);
   const [viewScalePercent, setViewScalePercent] = useState(100);
   const [interpolationMethod, setInterpolationMethod] = useState<InterpolationMethod>('bilinear');
   const [autoFitKey, setAutoFitKey] = useState(0);
@@ -80,6 +89,7 @@ function App() {
       file,
       (imageData, info) => {
         setOriginalImageData(imageData);
+        setSourceImageData(cloneImageData(imageData));
         setChannels({ r: true, g: true, b: true, a: info.hasAlpha });
         setLevelsSettings(createInitialFilter());
         setKernelFilterSettings(null);
@@ -103,14 +113,18 @@ function App() {
   }, [displayImageData]);
 
   const onPixelClick = useCallback((x: number, y: number) => {
-    if (!displayImageData) return;
-    const index = (y * displayImageData.width + x) * 4;
-    const r = displayImageData.data[index];
-    const g = displayImageData.data[index + 1];
-    const b = displayImageData.data[index + 2];
-    const a = displayImageData.data[index + 3];
-    setPickedPixel({ x, y, r, g, b, a });
-  }, [displayImageData]);
+    if (!sourceImageData) return;
+
+    const sourceX = Math.min(sourceImageData.width - 1, Math.max(0, x));
+    const sourceY = Math.min(sourceImageData.height - 1, Math.max(0, y));
+    const index = (sourceY * sourceImageData.width + sourceX) * 4;
+    const r = sourceImageData.data[index];
+    const g = sourceImageData.data[index + 1];
+    const b = sourceImageData.data[index + 2];
+    const a = sourceImageData.data[index + 3];
+
+    setPickedPixel({ x: sourceX, y: sourceY, r, g, b, a });
+  }, [sourceImageData]);
 
   const toggleEyedropper = useCallback(() => {
     setIsEyedropperActive(prev => !prev);
@@ -122,6 +136,7 @@ function App() {
 
   const onResizeApply = useCallback((resizedImageData: ImageData) => {
     setOriginalImageData(resizedImageData);
+    setSourceImageData(cloneImageData(resizedImageData));
     setImageInfo(prev => ({
       ...prev,
       width: resizedImageData.width,
@@ -132,6 +147,23 @@ function App() {
     setAutoFitKey(key => key + 1);
     setIsResizeOpen(false);
   }, [setOriginalImageData]);
+
+  const onLevelsCommit = useCallback((settings: FilterSettings) => {
+    if (!originalImageData) return;
+
+    setOriginalImageData(applyLevelsToImageData(originalImageData, settings));
+    setLevelsSettings(createInitialFilter());
+    setPickedPixel(null);
+  }, [originalImageData, setLevelsSettings, setOriginalImageData]);
+
+  const onKernelFilterApply = useCallback((settings: KernelFilterSettings | null) => {
+    if (settings && originalImageData) {
+      setOriginalImageData(applyKernelFilterToImageData(originalImageData, settings));
+    }
+
+    setKernelFilterSettings(null);
+    setPickedPixel(null);
+  }, [originalImageData, setKernelFilterSettings, setOriginalImageData]);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -214,6 +246,7 @@ function App() {
               open={isLevelsOpen}
               onClose={() => setIsLevelsOpen(false)}
               onApply={setLevelsSettings}
+              onCommit={onLevelsCommit}
               currentSettings={levelsSettings}
               histograms={histograms}
               imageInfo={imageInfo}
@@ -252,7 +285,7 @@ function App() {
             imageInfo={imageInfo}
             currentSettings={kernelFilterSettings}
             onPreviewChange={setKernelFilterSettings}
-            onApply={setKernelFilterSettings}
+            onApply={onKernelFilterApply}
             onClose={() => setIsKernelFilterOpen(false)}
           />
         )}

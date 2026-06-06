@@ -157,10 +157,7 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({
                 height: 46,
                 borderRadius: 1,
                 border: '1px solid rgba(255,255,255,0.28)',
-                bgcolor: `rgba(${pickedPixel.r},${pickedPixel.g},${pickedPixel.b},${pickedPixel.a / 255})`,
-                backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.12) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.12) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.12) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.12) 75%)',
-                backgroundSize: '14px 14px',
-                backgroundPosition: '0 0, 0 7px, 7px -7px, -7px 0px',
+                bgcolor: `rgb(${pickedPixel.r},${pickedPixel.g},${pickedPixel.b})`,
               }} />
               <Stack spacing={0.5}>
                 <Chip size="small" label={`X ${pickedPixel.x}`} />

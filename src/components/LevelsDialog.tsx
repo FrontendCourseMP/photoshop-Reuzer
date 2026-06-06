@@ -22,6 +22,7 @@ interface LevelsDialogProps {
   open: boolean;
   onClose: () => void;
   onApply: (settings: FilterSettings) => void;
+  onCommit: (settings: FilterSettings) => void;
   currentSettings: FilterSettings;
   histograms: HistogramData | null;
   imageInfo: ImageInfo;
@@ -46,6 +47,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   open,
   onClose,
   onApply,
+  onCommit,
   currentSettings,
   histograms,
   imageInfo,
@@ -88,7 +90,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   };
 
   const handleApply = () => {
-    onApply(localSettings);
+    onCommit(localSettings);
     onClose();
   };
 
@@ -205,7 +207,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
           </IconButton>
         </Stack>
 
-        <Box sx={{ minHeight: 0, overflow: 'auto', pr: 0.5 }}>
+        <Box sx={{ minHeight: 0, overflow: 'hidden' }}>
           <Box sx={{ mb: 1.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               Канал
@@ -238,7 +240,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
             sx={{
               bgcolor: '#0f1013',
               borderColor: 'divider',
-              height: 176,
+              height: 150,
               mb: 1,
               position: 'relative',
               overflow: 'hidden',
@@ -292,7 +294,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
             max={255}
             disableSwap
             sx={{
-              mb: 2.5,
+              mb: 1.5,
               color: activeChannel.key === 'master' ? 'primary.main' : activeChannel.color,
             }}
           />
@@ -313,12 +315,12 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
             max={currentChannelSettings.white - 1}
             disabled={!canMoveGamma}
             sx={{
-              mb: 1,
+              mb: 0.5,
               color: activeChannel.key === 'master' ? 'primary.main' : activeChannel.color,
             }}
           />
 
-          <Stack direction="row" spacing={0.75} sx={{ mb: 1 }}>
+          <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }}>
             <Chip size="small" label={`Black ${currentChannelSettings.black}`} />
             <Chip size="small" label={`γ ${currentChannelSettings.gamma.toFixed(2)}`} />
             <Chip size="small" label={`White ${currentChannelSettings.white}`} />

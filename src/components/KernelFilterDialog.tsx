@@ -108,6 +108,7 @@ export const KernelFilterDialog = ({
       title="Фильтр ядром"
       subtitle="Свёртка 3×3 с выбором каналов"
       maxWidth="sm"
+      draggable
       actions={(
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap' }}>
           <FormControlLabel
