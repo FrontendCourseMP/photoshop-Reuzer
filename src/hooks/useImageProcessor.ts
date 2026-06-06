@@ -24,19 +24,20 @@ export interface FilterSettings {
 export type HistogramData = Record<keyof FilterSettings, Uint32Array>;
 
 export const INITIAL_LEVELS: LevelsSettings = { black: 0, white: 255, gamma: 1.0 };
-export const INITIAL_FILTER: FilterSettings = {
+export const createInitialFilter = (): FilterSettings => ({
   master: { ...INITIAL_LEVELS },
   r: { ...INITIAL_LEVELS },
   g: { ...INITIAL_LEVELS },
   b: { ...INITIAL_LEVELS },
   a: { ...INITIAL_LEVELS },
-};
+});
+export const INITIAL_FILTER: FilterSettings = createInitialFilter();
 
 export function useImageProcessor() {
   const [originalImageData, setOriginalImageData] = useState<ImageData | null>(null);
   const [displayImageData, setDisplayImageData] = useState<ImageData | null>(null);
   const [channels, setChannels] = useState<ChannelState>({ r: true, g: true, b: true, a: true });
-  const [levelsSettings, setLevelsSettings] = useState<FilterSettings>(INITIAL_FILTER);
+  const [levelsSettings, setLevelsSettings] = useState<FilterSettings>(() => createInitialFilter());
   const [histograms, setHistograms] = useState<HistogramData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   

@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react';
 import { 
   Box, CssBaseline, GlobalStyles, ThemeProvider, createTheme 
 } from '@mui/material';
-import { useImageProcessor } from './hooks/useImageProcessor';
+import { createInitialFilter, useImageProcessor } from './hooks/useImageProcessor';
 import { ToolBar } from './components/ToolBar';
 import { ImageCanvas } from './components/ImageCanvas';
 import { ChannelsPanel } from './components/ChannelsPanel';
@@ -68,13 +68,14 @@ function App() {
       (imageData, info) => {
         setOriginalImageData(imageData);
         setChannels({ r: true, g: true, b: true, a: info.hasAlpha });
+        setLevelsSettings(createInitialFilter());
         setImageInfo(info);
         setPickedPixel(null);
       },
       (error) => alert(error)
     );
     event.target.value = '';
-  }, [setOriginalImageData, setChannels]);
+  }, [setOriginalImageData, setChannels, setLevelsSettings]);
 
   const onDownload = useCallback((format: 'png' | 'jpg' | 'gb7') => {
     if (displayImageData) {
@@ -148,7 +149,7 @@ function App() {
           display: 'grid',
           gridTemplateColumns: {
             xs: '1fr',
-            md: '260px minmax(0, 1fr) 300px',
+            md: isLevelsOpen ? '260px minmax(0, 1fr) 380px' : '260px minmax(0, 1fr) 300px',
           },
           minHeight: 0,
           overflow: 'hidden',
@@ -170,19 +171,22 @@ function App() {
             isProcessing={isProcessing}
           />
 
-          <MemoizedInfoPanel 
-            imageInfo={imageInfo}
-            pickedPixel={pickedPixel}
-          />
+          {isLevelsOpen ? (
+            <LevelsDialog
+              open={isLevelsOpen}
+              onClose={() => setIsLevelsOpen(false)}
+              onApply={setLevelsSettings}
+              currentSettings={levelsSettings}
+              histograms={histograms}
+              imageInfo={imageInfo}
+            />
+          ) : (
+            <MemoizedInfoPanel
+              imageInfo={imageInfo}
+              pickedPixel={pickedPixel}
+            />
+          )}
         </Box>
-
-        <LevelsDialog 
-          open={isLevelsOpen}
-          onClose={() => setIsLevelsOpen(false)}
-          onApply={setLevelsSettings}
-          currentSettings={levelsSettings}
-          histograms={histograms}
-        />
 
         <StatusBar 
           imageInfo={imageInfo}

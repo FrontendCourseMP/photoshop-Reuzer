@@ -9,12 +9,6 @@ import {
   IconButton,
   Paper,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Tabs,
-  Tab,
   Stack,
   Chip,
 } from '@mui/material';
@@ -22,6 +16,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import type { FilterSettings, HistogramData, LevelsSettings } from '../hooks/useImageProcessor';
 import { INITIAL_LEVELS } from '../hooks/useImageProcessor';
+import type { ImageInfo } from '../types/image';
 
 interface LevelsDialogProps {
   open: boolean;
@@ -29,15 +24,23 @@ interface LevelsDialogProps {
   onApply: (settings: FilterSettings) => void;
   currentSettings: FilterSettings;
   histograms: HistogramData | null;
+  imageInfo: ImageInfo;
 }
 
-const CHANNELS: { key: keyof FilterSettings; label: string; color: string }[] = [
-  { key: 'master', label: 'RGB', color: '#f4f6f8' },
-  { key: 'r', label: 'R', color: '#ff6b6b' },
-  { key: 'g', label: 'G', color: '#4ddf86' },
-  { key: 'b', label: 'B', color: '#65a9ff' },
-  { key: 'a', label: 'A', color: '#f2b84b' },
-];
+interface LevelsChannel {
+  key: keyof FilterSettings;
+  label: string;
+  shortLabel: string;
+  color: string;
+}
+
+const BASE_CHANNELS: Record<keyof FilterSettings, LevelsChannel> = {
+  master: { key: 'master', label: 'RGB (Master)', shortLabel: 'RGB', color: '#f4f6f8' },
+  r: { key: 'r', label: 'Red', shortLabel: 'R', color: '#ff6b6b' },
+  g: { key: 'g', label: 'Green', shortLabel: 'G', color: '#4ddf86' },
+  b: { key: 'b', label: 'Blue', shortLabel: 'B', color: '#65a9ff' },
+  a: { key: 'a', label: 'Alpha', shortLabel: 'A', color: '#f2b84b' },
+};
 
 export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   open,
@@ -45,6 +48,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   onApply,
   currentSettings,
   histograms,
+  imageInfo,
 }) => {
   const initialSettingsRef = useRef<FilterSettings>(currentSettings);
   const isFirstOpenRef = useRef(true);
@@ -53,28 +57,33 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   const [isPreviewEnabled, setIsPreviewEnabled] = useState(true);
   const [isLogScale, setIsLogScale] = useState(false);
 
+  const availableChannels = useMemo(() => buildLevelsChannels(imageInfo), [imageInfo]);
+  const selectedChannelAvailable = availableChannels.some(channel => channel.key === selectedChannel);
+  const activeChannelKey = selectedChannelAvailable ? selectedChannel : availableChannels[0]?.key ?? 'master';
+
   useEffect(() => {
     if (open && isFirstOpenRef.current) {
       initialSettingsRef.current = currentSettings;
       setLocalSettings(currentSettings);
+      setIsPreviewEnabled(true);
+      setSelectedChannel(availableChannels[0]?.key ?? 'master');
       isFirstOpenRef.current = false;
     }
 
     if (!open) {
       isFirstOpenRef.current = true;
     }
-  }, [open, currentSettings]);
+  }, [open, currentSettings, availableChannels]);
 
   useEffect(() => {
-    if (open && isPreviewEnabled) {
-      onApply(localSettings);
-    }
-  }, [localSettings, isPreviewEnabled, onApply, open]);
+    if (!open) return;
+    onApply(isPreviewEnabled ? localSettings : initialSettingsRef.current);
+  }, [isPreviewEnabled, localSettings, onApply, open]);
 
   const handleReset = () => {
     setLocalSettings(prev => ({
       ...prev,
-      [selectedChannel]: { ...INITIAL_LEVELS },
+      [activeChannelKey]: { ...INITIAL_LEVELS },
     }));
   };
 
@@ -90,30 +99,42 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
 
   const updateChannelSetting = (key: keyof LevelsSettings, value: number) => {
     setLocalSettings(prev => {
-      const current = prev[selectedChannel];
+      const current = prev[activeChannelKey];
       if (key === 'black' && value >= current.white) return prev;
       if (key === 'white' && value <= current.black) return prev;
 
       return {
         ...prev,
-        [selectedChannel]: { ...current, [key]: value },
+        [activeChannelKey]: { ...current, [key]: value },
       };
     });
   };
 
-  const handleRangeChange = (_: Event, val: number | number[]) => {
-    if (!Array.isArray(val)) return;
-    const [black, white] = val;
+  const handleRangeChange = (_: Event, value: number | number[]) => {
+    if (!Array.isArray(value)) return;
+    const [rawBlack, rawWhite] = value;
+    const black = Math.min(rawBlack, rawWhite - 1);
+    const white = Math.max(rawWhite, black + 1);
+
     setLocalSettings(prev => ({
       ...prev,
-      [selectedChannel]: { ...prev[selectedChannel], black, white },
+      [activeChannelKey]: {
+        ...prev[activeChannelKey],
+        black,
+        white,
+      },
     }));
   };
 
-  const histogramData = useMemo(() => {
-    if (!histograms || !histograms[selectedChannel]) return [];
+  const handleGammaPositionChange = (_: Event, value: number | number[]) => {
+    if (Array.isArray(value)) return;
+    updateChannelSetting('gamma', positionToGamma(value, currentChannelSettings.black, currentChannelSettings.white));
+  };
 
-    const data = histograms[selectedChannel];
+  const histogramData = useMemo(() => {
+    if (!histograms || !histograms[activeChannelKey]) return [];
+
+    const data = histograms[activeChannelKey];
     const max = Math.max(...data);
     if (max <= 0) return Array.from(data).map(() => 0);
 
@@ -124,121 +145,140 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
 
       return value / max;
     });
-  }, [histograms, selectedChannel, isLogScale]);
+  }, [histograms, activeChannelKey, isLogScale]);
 
-  const currentChannelSettings = localSettings[selectedChannel];
-  const activeChannel = CHANNELS.find(channel => channel.key === selectedChannel) ?? CHANNELS[0];
+  if (!open) return null;
+
+  const currentChannelSettings = localSettings[activeChannelKey];
+  const activeChannel = availableChannels.find(channel => channel.key === activeChannelKey) ?? availableChannels[0] ?? BASE_CHANNELS.master;
+  const gammaPosition = gammaToPosition(currentChannelSettings.gamma, currentChannelSettings.black, currentChannelSettings.white);
+  const canMoveGamma = currentChannelSettings.white - currentChannelSettings.black > 2;
 
   return (
-    <Dialog
+    <Box
+      component="dialog"
       open={open}
-      onClose={handleCancel}
-      maxWidth="sm"
-      fullWidth
-      slotProps={{
-        paper: {
-          sx: {
-            bgcolor: '#1b1d22',
-            border: '1px solid',
-            borderColor: 'divider',
-            boxShadow: '0 28px 80px rgba(0,0,0,0.55)',
-          },
-        },
+      onCancel={(event) => {
+        event.preventDefault();
+        handleCancel();
+      }}
+      sx={{
+        width: '100%',
+        height: '100%',
+        m: 0,
+        p: 0,
+        border: 0,
+        color: 'text.primary',
+        bgcolor: 'transparent',
+        position: 'static',
+        maxWidth: 'none',
+        maxHeight: 'none',
+        display: { xs: 'none', md: 'block' },
       }}
     >
-      <DialogTitle sx={{ p: 2.25, pb: 1.25 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
+      <Paper
+        square
+        elevation={0}
+        sx={{
+          height: '100%',
+          p: 2,
+          bgcolor: '#181a1f',
+          borderLeft: '1px solid',
+          borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          overflow: 'hidden',
+        }}
+      >
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>
               Уровни
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Входной диапазон и гамма
+              Гистограмма и входные уровни
             </Typography>
           </Box>
           <IconButton onClick={handleCancel} size="small">
             <CloseIcon />
           </IconButton>
         </Stack>
-      </DialogTitle>
 
-      <DialogContent sx={{ px: 2.25, pb: 1.5 }}>
-        <Tabs
-          value={selectedChannel}
-          onChange={(_, value) => setSelectedChannel(value as keyof FilterSettings)}
-          variant="fullWidth"
-          sx={{
-            minHeight: 38,
-            mb: 2,
-            '& .MuiTab-root': {
-              minHeight: 38,
-              fontWeight: 800,
-            },
-          }}
-        >
-          {CHANNELS.map(channel => (
-            <Tab
-              key={channel.key}
-              value={channel.key}
-              label={channel.label}
+        <Box sx={{ minHeight: 0, overflow: 'auto', pr: 0.5 }}>
+          <Box sx={{ mb: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Канал
+            </Typography>
+            <Box
+              component="select"
+              value={activeChannelKey}
+              onChange={(event) => setSelectedChannel(event.target.value as keyof FilterSettings)}
               sx={{
-                color: channel.key === selectedChannel ? channel.color : undefined,
+                width: '100%',
+                height: 36,
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#202329',
+                color: 'text.primary',
+                px: 1,
               }}
+            >
+              {availableChannels.map(channel => (
+                <option key={channel.key} value={channel.key}>
+                  {channel.label}
+                </option>
+              ))}
+            </Box>
+          </Box>
+
+          <Paper
+            variant="outlined"
+            sx={{
+              bgcolor: '#0f1013',
+              borderColor: 'divider',
+              height: 176,
+              mb: 1,
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+              backgroundSize: '32px 32px',
+            }} />
+            <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 256 100">
+              {histogramData.map((value, index) => (
+                <line
+                  key={index}
+                  x1={index}
+                  y1="100"
+                  x2={index}
+                  y2={100 - value * 100}
+                  stroke={activeChannel.color}
+                  strokeWidth="1"
+                  opacity="0.86"
+                />
+              ))}
+            </svg>
+          </Paper>
+
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={isLogScale} onChange={event => setIsLogScale(event.target.checked)} />}
+              label={<Typography variant="caption">Логарифмическая</Typography>}
             />
-          ))}
-        </Tabs>
-
-        <Paper
-          variant="outlined"
-          sx={{
-            bgcolor: '#0f1013',
-            borderColor: 'divider',
-            height: 188,
-            mb: 1.5,
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          <Box sx={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
-            backgroundSize: '32px 32px',
-          }} />
-          <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 256 100">
-            {histogramData.map((value, index) => (
-              <line
-                key={index}
-                x1={index}
-                y1="100"
-                x2={index}
-                y2={100 - value * 100}
-                stroke={activeChannel.color}
-                strokeWidth="1"
-                opacity="0.86"
-              />
-            ))}
-          </svg>
-        </Paper>
-
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <FormControlLabel
-            control={<Checkbox size="small" checked={isLogScale} onChange={e => setIsLogScale(e.target.checked)} />}
-            label={<Typography variant="caption">Логарифмическая шкала</Typography>}
-          />
-          <Stack direction="row" spacing={0.75}>
-            <Chip size="small" label={`Black ${currentChannelSettings.black}`} />
-            <Chip size="small" label={`γ ${currentChannelSettings.gamma.toFixed(1)}`} />
-            <Chip size="small" label={`White ${currentChannelSettings.white}`} />
+            <Chip size="small" label={activeChannel.shortLabel} sx={{ color: activeChannel.color }} />
           </Stack>
-        </Stack>
 
-        <Divider sx={{ mb: 2 }} />
+          <Divider sx={{ mb: 2 }} />
 
-        <Box sx={{ px: 1, pb: 1 }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 1 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-              Входные уровни
+              Input Levels
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {currentChannelSettings.black} / {currentChannelSettings.gamma.toFixed(2)} / {currentChannelSettings.white}
@@ -259,44 +299,108 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
 
           <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-              Гамма
+              Полутона
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Нелинейная коррекция
+              gamma {currentChannelSettings.gamma.toFixed(2)}
             </Typography>
           </Stack>
+
           <Slider
-            value={currentChannelSettings.gamma}
-            onChange={(_, value) => {
-              if (typeof value === 'number') updateChannelSetting('gamma', value);
-            }}
-            min={0.1}
-            max={9.9}
-            step={0.1}
+            value={gammaPosition}
+            onChange={handleGammaPositionChange}
+            min={currentChannelSettings.black + 1}
+            max={currentChannelSettings.white - 1}
+            disabled={!canMoveGamma}
             sx={{
+              mb: 1,
               color: activeChannel.key === 'master' ? 'primary.main' : activeChannel.color,
             }}
           />
-        </Box>
-      </DialogContent>
 
-      <DialogActions sx={{ px: 2.25, py: 2, justifyContent: 'space-between', borderTop: '1px solid', borderColor: 'divider' }}>
-        <FormControlLabel
-          control={<Checkbox checked={isPreviewEnabled} onChange={e => setIsPreviewEnabled(e.target.checked)} />}
-          label="Предпросмотр"
-        />
-        <Stack direction="row" spacing={1}>
-          <Button startIcon={<RestartAltIcon />} variant="text" onClick={handleReset}>
-            Сброс
-          </Button>
-          <Button variant="outlined" onClick={handleCancel}>
-            Отмена
-          </Button>
-          <Button variant="contained" onClick={handleApply}>
-            Применить
-          </Button>
-        </Stack>
-      </DialogActions>
-    </Dialog>
+          <Stack direction="row" spacing={0.75} sx={{ mb: 1 }}>
+            <Chip size="small" label={`Black ${currentChannelSettings.black}`} />
+            <Chip size="small" label={`γ ${currentChannelSettings.gamma.toFixed(2)}`} />
+            <Chip size="small" label={`White ${currentChannelSettings.white}`} />
+          </Stack>
+        </Box>
+
+        <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+          <FormControlLabel
+            control={<Checkbox checked={isPreviewEnabled} onChange={event => setIsPreviewEnabled(event.target.checked)} />}
+            label="Предпросмотр"
+            sx={{ mb: 1 }}
+          />
+          <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <Button startIcon={<RestartAltIcon />} variant="text" onClick={handleReset}>
+              Сброс
+            </Button>
+            <Button variant="outlined" onClick={handleCancel}>
+              Отмена
+            </Button>
+            <Button variant="contained" onClick={handleApply}>
+              Применить
+            </Button>
+          </Stack>
+        </Box>
+      </Paper>
+    </Box>
   );
+};
+
+const buildLevelsChannels = (imageInfo: ImageInfo): LevelsChannel[] => {
+  if (imageInfo.colorModel === 'none') return [BASE_CHANNELS.master];
+
+  if (imageInfo.isGrayscale) {
+    const channels: LevelsChannel[] = [
+      {
+        ...BASE_CHANNELS.master,
+        label: 'Яркость (Master)',
+        shortLabel: 'Y',
+      },
+    ];
+
+    if (imageInfo.hasAlpha) {
+      channels.push({
+        ...BASE_CHANNELS.a,
+        label: imageInfo.hasMask ? 'Mask / Alpha' : 'Alpha',
+      });
+    }
+
+    return channels;
+  }
+
+  const channels = [
+    BASE_CHANNELS.master,
+    BASE_CHANNELS.r,
+    BASE_CHANNELS.g,
+    BASE_CHANNELS.b,
+  ];
+
+  if (imageInfo.hasAlpha) {
+    channels.push(BASE_CHANNELS.a);
+  }
+
+  return channels;
+};
+
+const gammaToPosition = (gamma: number, black: number, white: number): number => {
+  const range = white - black;
+  if (range <= 2) return Math.round((black + white) / 2);
+
+  const normalized = 0.5 - Math.log10(gamma) / (2 * Math.log10(9.9));
+  return clamp(Math.round(black + normalized * range), black + 1, white - 1);
+};
+
+const positionToGamma = (position: number, black: number, white: number): number => {
+  const range = white - black;
+  if (range <= 2) return 1;
+
+  const normalized = clamp((position - black) / range, 0, 1);
+  const gamma = 10 ** ((0.5 - normalized) * 2 * Math.log10(9.9));
+  return Number(clamp(gamma, 0.1, 9.9).toFixed(2));
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(max, Math.max(min, value));
 };
