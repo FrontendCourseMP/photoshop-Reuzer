@@ -6,6 +6,7 @@ import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AspectRatioIcon from '@mui/icons-material/AspectRatio';
+import FilterIcon from '@mui/icons-material/Filter';
 import type { ImageInfo } from '../types/image';
 
 interface ToolBarProps {
@@ -15,6 +16,7 @@ interface ToolBarProps {
   onToggleEyedropper: () => void;
   onOpenLevels: () => void;
   onOpenResize: () => void;
+  onOpenKernelFilter: () => void;
   hasImage: boolean;
   imageInfo: ImageInfo;
 }
@@ -26,6 +28,7 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   onToggleEyedropper,
   onOpenLevels,
   onOpenResize,
+  onOpenKernelFilter,
   hasImage,
   imageInfo
 }) => {
@@ -182,6 +185,23 @@ export const ToolBar: React.FC<ToolBarProps> = ({
               }}
             >
               <AspectRatioIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
+
+        <Tooltip title="Фильтр ядром">
+          <span>
+            <IconButton
+              onClick={onOpenKernelFilter}
+              disabled={!hasImage}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#202329',
+                '&:hover': { bgcolor: '#292d35' },
+              }}
+            >
+              <FilterIcon />
             </IconButton>
           </span>
         </Tooltip>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import type { KernelFilterSettings } from '../types/kernelFilter';
 
 export interface ChannelState {
   r: boolean;
@@ -38,15 +39,16 @@ export function useImageProcessor() {
   const [displayImageData, setDisplayImageData] = useState<ImageData | null>(null);
   const [channels, setChannels] = useState<ChannelState>({ r: true, g: true, b: true, a: true });
   const [levelsSettings, setLevelsSettings] = useState<FilterSettings>(() => createInitialFilter());
+  const [kernelFilterSettings, setKernelFilterSettings] = useState<KernelFilterSettings | null>(null);
   const [histograms, setHistograms] = useState<HistogramData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
   const workerRef = useRef<Worker | null>(null);
   const isWorkerBusyRef = useRef(false);
-  const pendingRequestRef = useRef<{ settings: FilterSettings, computeHist: boolean } | null>(null);
+  const pendingRequestRef = useRef<{ levels: FilterSettings, kernel: KernelFilterSettings | null, computeHist: boolean } | null>(null);
   const processingTimeoutRef = useRef<number | null>(null);
 
-  const sendToWorker = useCallback((settings: FilterSettings, computeHist: boolean) => {
+  const sendToWorker = useCallback((levels: FilterSettings, kernel: KernelFilterSettings | null, computeHist: boolean) => {
     if (!originalImageData || !workerRef.current) return;
 
     isWorkerBusyRef.current = true;
@@ -65,7 +67,8 @@ export function useImageProcessor() {
         data: originalImageData.data
       },
       channels,
-      levelsSettings: settings,
+      levelsSettings: levels,
+      kernelFilterSettings: kernel,
       computeHistogram: computeHist
     });
   }, [originalImageData, channels]);
@@ -88,9 +91,9 @@ export function useImageProcessor() {
 
       // If we have a pending request, send it now
       if (pendingRequestRef.current) {
-        const { settings, computeHist } = pendingRequestRef.current;
+        const { levels, kernel, computeHist } = pendingRequestRef.current;
         pendingRequestRef.current = null;
-        sendToWorker(settings, computeHist);
+        sendToWorker(levels, kernel, computeHist);
       }
     };
 
@@ -108,13 +111,17 @@ export function useImageProcessor() {
     setChannels(nextChannels);
   }, []);
 
-  const applySettings = useCallback((newSettings: FilterSettings, computeHist: boolean = false) => {
+  const applySettings = useCallback((
+    newLevels: FilterSettings = levelsSettings,
+    newKernel: KernelFilterSettings | null = kernelFilterSettings,
+    computeHist: boolean = false
+  ) => {
     if (isWorkerBusyRef.current) {
-      pendingRequestRef.current = { settings: newSettings, computeHist };
+      pendingRequestRef.current = { levels: newLevels, kernel: newKernel, computeHist };
     } else {
-      sendToWorker(newSettings, computeHist);
+      sendToWorker(newLevels, newKernel, computeHist);
     }
-  }, [sendToWorker]);
+  }, [kernelFilterSettings, levelsSettings, sendToWorker]);
 
   const updateOriginalImageData = useCallback((imageData: ImageData | null) => {
     setOriginalImageData(imageData);
@@ -126,8 +133,8 @@ export function useImageProcessor() {
 
   useEffect(() => {
     if (!originalImageData) return;
-    applySettings(levelsSettings, true);
-  }, [originalImageData, channels, levelsSettings, applySettings]);
+    applySettings(levelsSettings, kernelFilterSettings, true);
+  }, [originalImageData, channels, levelsSettings, kernelFilterSettings, applySettings]);
 
   return {
     originalImageData,
@@ -138,6 +145,8 @@ export function useImageProcessor() {
     setChannels: setChannelState,
     levelsSettings,
     setLevelsSettings,
+    kernelFilterSettings,
+    setKernelFilterSettings,
     histograms,
     isProcessing,
     applySettings

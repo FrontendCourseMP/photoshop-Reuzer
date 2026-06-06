@@ -9,6 +9,7 @@ import { ImageCanvas } from './components/ImageCanvas';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { InfoPanel } from './components/InfoPanel';
 import { LevelsDialog } from './components/LevelsDialog';
+import { KernelFilterDialog } from './components/KernelFilterDialog';
 import { ResizeDialog } from './components/ResizeDialog';
 import { StatusBar } from './components/StatusBar';
 import { handleImageFile, downloadImage } from './utils/fileHandler';
@@ -55,6 +56,8 @@ function App() {
     setChannels,
     levelsSettings,
     setLevelsSettings,
+    kernelFilterSettings,
+    setKernelFilterSettings,
     histograms,
     isProcessing
   } = useImageProcessor();
@@ -66,6 +69,7 @@ function App() {
   const [isEyedropperActive, setIsEyedropperActive] = useState(false);
   const [isLevelsOpen, setIsLevelsOpen] = useState(false);
   const [isResizeOpen, setIsResizeOpen] = useState(false);
+  const [isKernelFilterOpen, setIsKernelFilterOpen] = useState(false);
   const [pickedPixel, setPickedPixel] = useState<{ x: number, y: number, r: number, g: number, b: number, a: number } | null>(null);
 
   const onFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -78,6 +82,7 @@ function App() {
         setOriginalImageData(imageData);
         setChannels({ r: true, g: true, b: true, a: info.hasAlpha });
         setLevelsSettings(createInitialFilter());
+        setKernelFilterSettings(null);
         setImageInfo(info);
         setPickedPixel(null);
         setAutoFitKey(key => key + 1);
@@ -85,7 +90,7 @@ function App() {
       (error) => alert(error)
     );
     event.target.value = '';
-  }, [setOriginalImageData, setChannels, setLevelsSettings]);
+  }, [setOriginalImageData, setChannels, setLevelsSettings, setKernelFilterSettings]);
 
   const onDownload = useCallback((format: 'png' | 'jpg' | 'gb7') => {
     if (displayImageData) {
@@ -168,6 +173,7 @@ function App() {
           onToggleEyedropper={toggleEyedropper}
           onOpenLevels={() => setIsLevelsOpen(true)}
           onOpenResize={() => setIsResizeOpen(true)}
+          onOpenKernelFilter={() => setIsKernelFilterOpen(true)}
           hasImage={!!originalImageData}
           imageInfo={imageInfo}
         />
@@ -237,6 +243,17 @@ function App() {
             defaultMethod={interpolationMethod}
             onClose={() => setIsResizeOpen(false)}
             onApply={onResizeApply}
+          />
+        )}
+
+        {isKernelFilterOpen && originalImageData && (
+          <KernelFilterDialog
+            open={isKernelFilterOpen}
+            imageInfo={imageInfo}
+            currentSettings={kernelFilterSettings}
+            onPreviewChange={setKernelFilterSettings}
+            onApply={setKernelFilterSettings}
+            onClose={() => setIsKernelFilterOpen(false)}
           />
         )}
 
