@@ -1,41 +1,94 @@
-import React, { useRef, useEffect, memo } from 'react';
+import React, { useRef, useEffect, useMemo, useState, memo } from 'react';
 import { Box, CircularProgress, Typography, Stack, Chip } from '@mui/material';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import ColorizeIcon from '@mui/icons-material/Colorize';
+import {
+  calculateFitScale,
+  clampViewScale,
+  resizeImageData,
+  type InterpolationMethod,
+} from '../utils/interpolation';
 
 interface ImageCanvasProps {
   imageData: ImageData | null;
   onPixelClick?: (x: number, y: number) => void;
   isEyedropperActive: boolean;
   isProcessing?: boolean;
+  scalePercent: number;
+  interpolationMethod: InterpolationMethod;
+  autoFitKey: number;
+  onScaleChange: (scale: number) => void;
 }
 
 export const ImageCanvas = memo(({ 
   imageData, 
   onPixelClick, 
   isEyedropperActive, 
-  isProcessing 
+  isProcessing,
+  scalePercent,
+  interpolationMethod,
+  autoFitKey,
+  onScaleChange,
 }: ImageCanvasProps) => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lastAutoFitKeyRef = useRef<number | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+
+  const renderImageData = useMemo(() => {
+    if (!imageData) return null;
+
+    const scale = clampViewScale(scalePercent) / 100;
+    const width = Math.max(1, Math.round(imageData.width * scale));
+    const height = Math.max(1, Math.round(imageData.height * scale));
+
+    return resizeImageData(imageData, width, height, interpolationMethod);
+  }, [imageData, interpolationMethod, scalePercent]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const updateSize = () => {
+      setViewportSize({
+        width: root.clientWidth,
+        height: root.clientHeight,
+      });
+    };
+
+    updateSize();
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(root);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!imageData || viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    if (lastAutoFitKeyRef.current === autoFitKey) return;
+
+    lastAutoFitKeyRef.current = autoFitKey;
+    onScaleChange(calculateFitScale(imageData.width, imageData.height, viewportSize.width, viewportSize.height));
+  }, [autoFitKey, imageData, onScaleChange, viewportSize.height, viewportSize.width]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !imageData) return;
+    if (!canvas || !renderImageData) return;
 
     // Only update dimensions if they changed to avoid clearing the canvas unnecessarily
-    if (canvas.width !== imageData.width || canvas.height !== imageData.height) {
-      canvas.width = imageData.width;
-      canvas.height = imageData.height;
+    if (canvas.width !== renderImageData.width || canvas.height !== renderImageData.height) {
+      canvas.width = renderImageData.width;
+      canvas.height = renderImageData.height;
     }
     
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.putImageData(imageData, 0, 0);
+      ctx.putImageData(renderImageData, 0, 0);
     }
-  }, [imageData]);
+  }, [renderImageData]);
 
   const handleMouseClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isEyedropperActive || !onPixelClick || !canvasRef.current || !imageData) return;
+    if (!isEyedropperActive || !onPixelClick || !canvasRef.current || !imageData || !renderImageData) return;
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -43,10 +96,12 @@ export const ImageCanvas = memo(({
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const x = Math.floor((event.clientX - rect.left) * scaleX);
-    const y = Math.floor((event.clientY - rect.top) * scaleY);
+    const scaledX = Math.floor((event.clientX - rect.left) * scaleX);
+    const scaledY = Math.floor((event.clientY - rect.top) * scaleY);
+    const x = Math.min(imageData.width - 1, Math.max(0, Math.floor(scaledX * imageData.width / renderImageData.width)));
+    const y = Math.min(imageData.height - 1, Math.max(0, Math.floor(scaledY * imageData.height / renderImageData.height)));
 
-    if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+    if (scaledX >= 0 && scaledX < canvas.width && scaledY >= 0 && scaledY < canvas.height) {
       onPixelClick(x, y);
     }
   };
@@ -64,7 +119,7 @@ export const ImageCanvas = memo(({
       p: { xs: 1.5, md: 3 },
       cursor: isEyedropperActive ? 'crosshair' : 'default',
       position: 'relative'
-    }}>
+    }} ref={rootRef}>
       {!imageData && (
         <Stack
           spacing={2}
@@ -122,17 +177,14 @@ export const ImageCanvas = memo(({
         </Box>
       )}
 
-      {imageData && (
-        <Box sx={{ position: 'relative', maxWidth: '100%', maxHeight: '100%' }}>
+      {imageData && renderImageData && (
+        <Box sx={{ position: 'relative' }}>
           <canvas 
             ref={canvasRef} 
             onClick={handleMouseClick}
             style={{ 
               display: 'block',
               boxShadow: '0 22px 55px rgba(0,0,0,0.42)',
-              maxWidth: '100%',
-              maxHeight: 'calc(100vh - 150px)',
-              objectFit: 'contain',
               opacity: isProcessing ? 0.78 : 1,
               border: '1px solid rgba(255,255,255,0.14)',
               borderRadius: 6,
@@ -146,7 +198,7 @@ export const ImageCanvas = memo(({
           <Stack direction="row" spacing={1} sx={{ position: 'absolute', left: 10, bottom: 10 }}>
             <Chip
               size="small"
-              label={`${imageData.width}×${imageData.height}`}
+              label={`${scalePercent}% · ${renderImageData.width}×${renderImageData.height}`}
               sx={{ bgcolor: 'rgba(17,18,22,0.82)', border: '1px solid rgba(255,255,255,0.14)' }}
             />
             {isEyedropperActive && (

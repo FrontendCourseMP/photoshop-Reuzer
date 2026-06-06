@@ -9,9 +9,14 @@ import { ImageCanvas } from './components/ImageCanvas';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { InfoPanel } from './components/InfoPanel';
 import { LevelsDialog } from './components/LevelsDialog';
+import { ResizeDialog } from './components/ResizeDialog';
 import { StatusBar } from './components/StatusBar';
 import { handleImageFile, downloadImage } from './utils/fileHandler';
 import { EMPTY_IMAGE_INFO } from './types/image';
+import {
+  clampViewScale,
+  type InterpolationMethod,
+} from './utils/interpolation';
 
 const darkTheme = createTheme({
   palette: {
@@ -55,8 +60,12 @@ function App() {
   } = useImageProcessor();
 
   const [imageInfo, setImageInfo] = useState(EMPTY_IMAGE_INFO);
+  const [viewScalePercent, setViewScalePercent] = useState(100);
+  const [interpolationMethod, setInterpolationMethod] = useState<InterpolationMethod>('bilinear');
+  const [autoFitKey, setAutoFitKey] = useState(0);
   const [isEyedropperActive, setIsEyedropperActive] = useState(false);
   const [isLevelsOpen, setIsLevelsOpen] = useState(false);
+  const [isResizeOpen, setIsResizeOpen] = useState(false);
   const [pickedPixel, setPickedPixel] = useState<{ x: number, y: number, r: number, g: number, b: number, a: number } | null>(null);
 
   const onFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +80,7 @@ function App() {
         setLevelsSettings(createInitialFilter());
         setImageInfo(info);
         setPickedPixel(null);
+        setAutoFitKey(key => key + 1);
       },
       (error) => alert(error)
     );
@@ -100,6 +110,23 @@ function App() {
   const toggleEyedropper = useCallback(() => {
     setIsEyedropperActive(prev => !prev);
   }, []);
+
+  const updateViewScale = useCallback((scale: number) => {
+    setViewScalePercent(clampViewScale(scale));
+  }, []);
+
+  const onResizeApply = useCallback((resizedImageData: ImageData) => {
+    setOriginalImageData(resizedImageData);
+    setImageInfo(prev => ({
+      ...prev,
+      width: resizedImageData.width,
+      height: resizedImageData.height,
+      fileSize: 0,
+    }));
+    setPickedPixel(null);
+    setAutoFitKey(key => key + 1);
+    setIsResizeOpen(false);
+  }, [setOriginalImageData]);
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -140,6 +167,7 @@ function App() {
           isEyedropperActive={isEyedropperActive}
           onToggleEyedropper={toggleEyedropper}
           onOpenLevels={() => setIsLevelsOpen(true)}
+          onOpenResize={() => setIsResizeOpen(true)}
           hasImage={!!originalImageData}
           imageInfo={imageInfo}
         />
@@ -169,6 +197,10 @@ function App() {
             isEyedropperActive={isEyedropperActive}
             onPixelClick={onPixelClick}
             isProcessing={isProcessing}
+            scalePercent={viewScalePercent}
+            interpolationMethod={interpolationMethod}
+            autoFitKey={autoFitKey}
+            onScaleChange={updateViewScale}
           />
 
           {isLevelsOpen ? (
@@ -184,6 +216,10 @@ function App() {
             <MemoizedInfoPanel
               imageInfo={imageInfo}
               pickedPixel={pickedPixel}
+              viewScalePercent={viewScalePercent}
+              onViewScaleChange={updateViewScale}
+              interpolationMethod={interpolationMethod}
+              onInterpolationMethodChange={setInterpolationMethod}
             />
           )}
         </Box>
@@ -193,6 +229,16 @@ function App() {
           isProcessing={isProcessing}
           hasImage={!!originalImageData}
         />
+
+        {isResizeOpen && originalImageData && (
+          <ResizeDialog
+            open={isResizeOpen}
+            imageData={originalImageData}
+            defaultMethod={interpolationMethod}
+            onClose={() => setIsResizeOpen(false)}
+            onApply={onResizeApply}
+          />
+        )}
 
       </Box>
     </ThemeProvider>

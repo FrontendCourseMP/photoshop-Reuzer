@@ -1,17 +1,36 @@
 import React from 'react';
-import { Box, Typography, Paper, Divider, Stack, Chip } from '@mui/material';
+import { Box, Typography, Paper, Divider, Stack, Chip, Slider } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import { rgbToLab } from '../utils/colorSpace';
 import type { ImageInfo } from '../types/image';
+import {
+  INTERPOLATION_OPTIONS,
+  MAX_VIEW_SCALE,
+  MIN_VIEW_SCALE,
+  type InterpolationMethod,
+} from '../utils/interpolation';
 
 interface InfoPanelProps {
   imageInfo: ImageInfo;
   pickedPixel: { x: number; y: number; r: number; g: number; b: number; a: number } | null;
+  viewScalePercent: number;
+  onViewScaleChange: (scale: number) => void;
+  interpolationMethod: InterpolationMethod;
+  onInterpolationMethodChange: (method: InterpolationMethod) => void;
 }
 
-export const InfoPanel: React.FC<InfoPanelProps> = ({ imageInfo, pickedPixel }) => {
+const PRESET_SCALES = [12, 25, 50, 75, 100, 150, 200, 300];
+
+export const InfoPanel: React.FC<InfoPanelProps> = ({
+  imageInfo,
+  pickedPixel,
+  viewScalePercent,
+  onViewScaleChange,
+  interpolationMethod,
+  onInterpolationMethodChange,
+}) => {
   const lab = pickedPixel ? rgbToLab({ r: pickedPixel.r, g: pickedPixel.g, b: pickedPixel.b }) : null;
   const hasImage = imageInfo.width > 0 && imageInfo.height > 0;
 
@@ -55,6 +74,73 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ imageInfo, pickedPixel }) 
         )}
       </Paper>
       
+      <Divider />
+
+      <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.025)', borderColor: 'divider' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Масштаб</Typography>
+          <Chip size="small" label={`${viewScalePercent}%`} />
+        </Stack>
+
+        <Slider
+          value={viewScalePercent}
+          min={MIN_VIEW_SCALE}
+          max={MAX_VIEW_SCALE}
+          disabled={!hasImage}
+          onChange={(_, value) => {
+            if (typeof value === 'number') onViewScaleChange(value);
+          }}
+          sx={{ mb: 1 }}
+        />
+
+        <Stack direction="row" spacing={1}>
+          <Box
+            component="select"
+            value={PRESET_SCALES.includes(viewScalePercent) ? String(viewScalePercent) : 'custom'}
+            disabled={!hasImage}
+            onChange={(event) => {
+              if (event.target.value !== 'custom') onViewScaleChange(Number(event.target.value));
+            }}
+            sx={{
+              width: '50%',
+              height: 32,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: '#202329',
+              color: 'text.primary',
+              px: 1,
+            }}
+          >
+            <option value="custom">Свое</option>
+            {PRESET_SCALES.map(scale => (
+              <option key={scale} value={scale}>{scale}%</option>
+            ))}
+          </Box>
+
+          <Box
+            component="select"
+            value={interpolationMethod}
+            disabled={!hasImage}
+            onChange={(event) => onInterpolationMethodChange(event.target.value as InterpolationMethod)}
+            sx={{
+              width: '50%',
+              height: 32,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: '#202329',
+              color: 'text.primary',
+              px: 1,
+            }}
+          >
+            {INTERPOLATION_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Box>
+        </Stack>
+      </Paper>
+
       <Divider />
       
       <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.025)', borderColor: 'divider' }}>

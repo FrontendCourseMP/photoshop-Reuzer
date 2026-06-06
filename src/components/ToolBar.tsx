@@ -5,6 +5,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AspectRatioIcon from '@mui/icons-material/AspectRatio';
 import type { ImageInfo } from '../types/image';
 
 interface ToolBarProps {
@@ -13,6 +14,7 @@ interface ToolBarProps {
   isEyedropperActive: boolean;
   onToggleEyedropper: () => void;
   onOpenLevels: () => void;
+  onOpenResize: () => void;
   hasImage: boolean;
   imageInfo: ImageInfo;
 }
@@ -23,6 +25,7 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   isEyedropperActive, 
   onToggleEyedropper,
   onOpenLevels,
+  onOpenResize,
   hasImage,
   imageInfo
 }) => {
@@ -162,6 +165,23 @@ export const ToolBar: React.FC<ToolBarProps> = ({
               }}
             >
               <TuneIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
+
+        <Tooltip title="Размер изображения">
+          <span>
+            <IconButton
+              onClick={onOpenResize}
+              disabled={!hasImage}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#202329',
+                '&:hover': { bgcolor: '#292d35' },
+              }}
+            >
+              <AspectRatioIcon />
             </IconButton>
           </span>
         </Tooltip>
