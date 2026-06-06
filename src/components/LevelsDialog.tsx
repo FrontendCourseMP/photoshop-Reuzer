@@ -1,8 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Box, Button, Typography, Checkbox, FormControlLabel, Slider, IconButton, Paper, Divider
+import {
+  Box,
+  Button,
+  Typography,
+  Checkbox,
+  FormControlLabel,
+  Slider,
+  IconButton,
+  Paper,
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tabs,
+  Tab,
+  Stack,
+  Chip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import type { FilterSettings, HistogramData, LevelsSettings } from '../hooks/useImageProcessor';
 import { INITIAL_LEVELS } from '../hooks/useImageProcessor';
 
@@ -14,32 +31,40 @@ interface LevelsDialogProps {
   histograms: HistogramData | null;
 }
 
-export const LevelsDialog: React.FC<LevelsDialogProps> = ({ 
-  open, onClose, onApply, currentSettings, histograms 
+const CHANNELS: { key: keyof FilterSettings; label: string; color: string }[] = [
+  { key: 'master', label: 'RGB', color: '#f4f6f8' },
+  { key: 'r', label: 'R', color: '#ff6b6b' },
+  { key: 'g', label: 'G', color: '#4ddf86' },
+  { key: 'b', label: 'B', color: '#65a9ff' },
+  { key: 'a', label: 'A', color: '#f2b84b' },
+];
+
+export const LevelsDialog: React.FC<LevelsDialogProps> = ({
+  open,
+  onClose,
+  onApply,
+  currentSettings,
+  histograms,
 }) => {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const initialSettingsRef = useRef<FilterSettings>(currentSettings);
+  const isFirstOpenRef = useRef(true);
   const [localSettings, setLocalSettings] = useState<FilterSettings>(currentSettings);
   const [selectedChannel, setSelectedChannel] = useState<keyof FilterSettings>('master');
   const [isPreviewEnabled, setIsPreviewEnabled] = useState(true);
   const [isLogScale, setIsLogScale] = useState(false);
-  const isFirstOpenRef = useRef(true);
 
   useEffect(() => {
-    if (open) {
-      if (isFirstOpenRef.current) {
-        initialSettingsRef.current = currentSettings;
-        setLocalSettings(currentSettings);
-        isFirstOpenRef.current = false;
-      }
-      dialogRef.current?.showModal();
-    } else {
+    if (open && isFirstOpenRef.current) {
+      initialSettingsRef.current = currentSettings;
+      setLocalSettings(currentSettings);
+      isFirstOpenRef.current = false;
+    }
+
+    if (!open) {
       isFirstOpenRef.current = true;
-      dialogRef.current?.close();
     }
   }, [open, currentSettings]);
 
-  // Real-time preview logic: we call onApply directly to update parent's levelsSettings
   useEffect(() => {
     if (open && isPreviewEnabled) {
       onApply(localSettings);
@@ -49,7 +74,7 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   const handleReset = () => {
     setLocalSettings(prev => ({
       ...prev,
-      [selectedChannel]: { ...INITIAL_LEVELS }
+      [selectedChannel]: { ...INITIAL_LEVELS },
     }));
   };
 
@@ -59,154 +84,219 @@ export const LevelsDialog: React.FC<LevelsDialogProps> = ({
   };
 
   const handleCancel = () => {
-    onApply(initialSettingsRef.current); // Restore original
+    onApply(initialSettingsRef.current);
     onClose();
   };
 
   const updateChannelSetting = (key: keyof LevelsSettings, value: number) => {
     setLocalSettings(prev => {
-        const current = prev[selectedChannel];
-        // Prevent black from exceeding white and vice versa
-        if (key === 'black' && value >= current.white) return prev;
-        if (key === 'white' && value <= current.black) return prev;
-        
-        return {
-            ...prev,
-            [selectedChannel]: { ...current, [key]: value }
-        };
+      const current = prev[selectedChannel];
+      if (key === 'black' && value >= current.white) return prev;
+      if (key === 'white' && value <= current.black) return prev;
+
+      return {
+        ...prev,
+        [selectedChannel]: { ...current, [key]: value },
+      };
     });
   };
 
-  // Use a dedicated handler for the range slider to avoid multiple state updates
   const handleRangeChange = (_: Event, val: number | number[]) => {
     if (!Array.isArray(val)) return;
-    const [b, w] = val;
+    const [black, white] = val;
     setLocalSettings(prev => ({
-        ...prev,
-        [selectedChannel]: { ...prev[selectedChannel], black: b, white: w }
+      ...prev,
+      [selectedChannel]: { ...prev[selectedChannel], black, white },
     }));
   };
 
-  // Pre-calculate histogram points for SVG
   const histogramData = useMemo(() => {
     if (!histograms || !histograms[selectedChannel]) return [];
+
     const data = histograms[selectedChannel];
     const max = Math.max(...data);
-    return Array.from(data).map((val) => {
-        if (isLogScale) {
-            return val > 0 ? Math.log(val) / Math.log(max) : 0;
-        }
-        return val / max;
+    if (max <= 0) return Array.from(data).map(() => 0);
+
+    return Array.from(data).map((value) => {
+      if (isLogScale) {
+        return Math.log(value + 1) / Math.log(max + 1);
+      }
+
+      return value / max;
     });
   }, [histograms, selectedChannel, isLogScale]);
 
-  if (!open) return null;
-
   const currentChannelSettings = localSettings[selectedChannel];
+  const activeChannel = CHANNELS.find(channel => channel.key === selectedChannel) ?? CHANNELS[0];
 
   return (
-    <dialog 
-      ref={dialogRef} 
+    <Dialog
+      open={open}
       onClose={handleCancel}
-      style={{
-        padding: 0,
-        border: 'none',
-        borderRadius: '8px',
-        backgroundColor: '#252526',
-        color: '#fff',
-        boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-        width: '600px'
+      maxWidth="sm"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: '#1b1d22',
+            border: '1px solid',
+            borderColor: 'divider',
+            boxShadow: '0 28px 80px rgba(0,0,0,0.55)',
+          },
+        },
       }}
     >
-      <Box sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Уровни</Typography>
-          <IconButton onClick={handleCancel} size="small" sx={{ color: '#fff' }}>
+      <DialogTitle sx={{ p: 2.25, pb: 1.25 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+              Уровни
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Входной диапазон и гамма
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCancel} size="small">
             <CloseIcon />
           </IconButton>
-        </Box>
+        </Stack>
+      </DialogTitle>
 
-        {/* Use native select for better compatibility with native <dialog> */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>Канал:</Typography>
-          <select 
-            value={selectedChannel} 
-            onChange={(e) => setSelectedChannel(e.target.value as keyof FilterSettings)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              backgroundColor: '#333',
-              color: '#fff',
-              border: '1px solid #555',
-              borderRadius: '4px'
-            }}
-          >
-            <option value="master">RGB (Master)</option>
-            <option value="r">Красный</option>
-            <option value="g">Зеленый</option>
-            <option value="b">Синий</option>
-            <option value="a">Альфа</option>
-          </select>
-        </Box>
+      <DialogContent sx={{ px: 2.25, pb: 1.5 }}>
+        <Tabs
+          value={selectedChannel}
+          onChange={(_, value) => setSelectedChannel(value as keyof FilterSettings)}
+          variant="fullWidth"
+          sx={{
+            minHeight: 38,
+            mb: 2,
+            '& .MuiTab-root': {
+              minHeight: 38,
+              fontWeight: 800,
+            },
+          }}
+        >
+          {CHANNELS.map(channel => (
+            <Tab
+              key={channel.key}
+              value={channel.key}
+              label={channel.label}
+              sx={{
+                color: channel.key === selectedChannel ? channel.color : undefined,
+              }}
+            />
+          ))}
+        </Tabs>
 
-        {/* Histogram Area */}
-        <Paper variant="outlined" sx={{ bgcolor: '#000', height: 180, mb: 1, position: 'relative', overflow: 'hidden' }}>
-            <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 256 100">
-                {histogramData.map((h, i) => (
-                    <line key={i} x1={i} y1="100" x2={i} y2={100 - (h * 100)} stroke="#ccc" strokeWidth="1" />
-                ))}
-            </svg>
+        <Paper
+          variant="outlined"
+          sx={{
+            bgcolor: '#0f1013',
+            borderColor: 'divider',
+            height: 188,
+            mb: 1.5,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: 'linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }} />
+          <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 256 100">
+            {histogramData.map((value, index) => (
+              <line
+                key={index}
+                x1={index}
+                y1="100"
+                x2={index}
+                y2={100 - value * 100}
+                stroke={activeChannel.color}
+                strokeWidth="1"
+                opacity="0.86"
+              />
+            ))}
+          </svg>
         </Paper>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <FormControlLabel 
-                control={<Checkbox size="small" checked={isLogScale} onChange={e => setIsLogScale(e.target.checked)} />} 
-                label={<Typography variant="caption">Логарифмическая шкала</Typography>} 
-            />
-        </Box>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <FormControlLabel
+            control={<Checkbox size="small" checked={isLogScale} onChange={e => setIsLogScale(e.target.checked)} />}
+            label={<Typography variant="caption">Логарифмическая шкала</Typography>}
+          />
+          <Stack direction="row" spacing={0.75}>
+            <Chip size="small" label={`Black ${currentChannelSettings.black}`} />
+            <Chip size="small" label={`γ ${currentChannelSettings.gamma.toFixed(1)}`} />
+            <Chip size="small" label={`White ${currentChannelSettings.white}`} />
+          </Stack>
+        </Stack>
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Input Levels Sliders */}
-        <Box sx={{ px: 2, mb: 4 }}>
-            <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-              Входные уровни: <b>{currentChannelSettings.black}</b> / <b>{currentChannelSettings.gamma.toFixed(2)}</b> / <b>{currentChannelSettings.white}</b>
+        <Box sx={{ px: 1, pb: 1 }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+              Входные уровни
             </Typography>
-            
-            <Slider
-                value={[currentChannelSettings.black, currentChannelSettings.white]}
-                onChange={handleRangeChange}
-                min={0}
-                max={255}
-                disableSwap
-                sx={{ mb: 2 }}
-            />
-            
-            <Typography variant="caption" sx={{ display: 'block' }}>Гамма (нелинейная коррекция)</Typography>
-            <Slider
-                value={currentChannelSettings.gamma}
-                onChange={(_, val) => {
-                  if (typeof val === 'number') updateChannelSetting('gamma', val);
-                }}
-                min={0.1}
-                max={9.9}
-                step={0.1}
-            />
-        </Box>
+            <Typography variant="caption" color="text.secondary">
+              {currentChannelSettings.black} / {currentChannelSettings.gamma.toFixed(2)} / {currentChannelSettings.white}
+            </Typography>
+          </Stack>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <FormControlLabel 
-                control={<Checkbox checked={isPreviewEnabled} onChange={e => setIsPreviewEnabled(e.target.checked)} />} 
-                label="Предпросмотр" 
-            />
-            <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button variant="text" size="small" onClick={handleReset}>Сброс</Button>
-                <Button variant="outlined" size="small" onClick={handleCancel}>Отмена</Button>
-                <Button variant="contained" size="small" onClick={handleApply}>Применить</Button>
-            </Box>
+          <Slider
+            value={[currentChannelSettings.black, currentChannelSettings.white]}
+            onChange={handleRangeChange}
+            min={0}
+            max={255}
+            disableSwap
+            sx={{
+              mb: 2.5,
+              color: activeChannel.key === 'master' ? 'primary.main' : activeChannel.color,
+            }}
+          />
+
+          <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+              Гамма
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Нелинейная коррекция
+            </Typography>
+          </Stack>
+          <Slider
+            value={currentChannelSettings.gamma}
+            onChange={(_, value) => {
+              if (typeof value === 'number') updateChannelSetting('gamma', value);
+            }}
+            min={0.1}
+            max={9.9}
+            step={0.1}
+            sx={{
+              color: activeChannel.key === 'master' ? 'primary.main' : activeChannel.color,
+            }}
+          />
         </Box>
-      </Box>
-    </dialog>
+      </DialogContent>
+
+      <DialogActions sx={{ px: 2.25, py: 2, justifyContent: 'space-between', borderTop: '1px solid', borderColor: 'divider' }}>
+        <FormControlLabel
+          control={<Checkbox checked={isPreviewEnabled} onChange={e => setIsPreviewEnabled(e.target.checked)} />}
+          label="Предпросмотр"
+        />
+        <Stack direction="row" spacing={1}>
+          <Button startIcon={<RestartAltIcon />} variant="text" onClick={handleReset}>
+            Сброс
+          </Button>
+          <Button variant="outlined" onClick={handleCancel}>
+            Отмена
+          </Button>
+          <Button variant="contained" onClick={handleApply}>
+            Применить
+          </Button>
+        </Stack>
+      </DialogActions>
+    </Dialog>
   );
 };
-

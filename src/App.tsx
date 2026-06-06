@@ -1,7 +1,7 @@
 import { useState, useCallback, memo } from 'react';
 import type { ChangeEvent } from 'react';
 import { 
-  Box, CssBaseline, ThemeProvider, createTheme 
+  Box, CssBaseline, GlobalStyles, ThemeProvider, createTheme 
 } from '@mui/material';
 import { useImageProcessor } from './hooks/useImageProcessor';
 import { ToolBar } from './components/ToolBar';
@@ -14,7 +14,25 @@ import { handleImageFile, downloadImage } from './utils/fileHandler';
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
-    background: { default: '#1e1e1e', paper: '#252526' }
+    primary: { main: '#2ed3b7' },
+    secondary: { main: '#f2b84b' },
+    error: { main: '#ff6b6b' },
+    background: { default: '#111216', paper: '#1b1d22' },
+    divider: 'rgba(255,255,255,0.08)',
+    text: {
+      primary: '#f4f6f8',
+      secondary: '#aeb4bd',
+    },
+  },
+  typography: {
+    fontFamily: ['Inter', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'].join(','),
+    button: {
+      textTransform: 'none',
+      fontWeight: 700,
+    },
+  },
+  shape: {
+    borderRadius: 8,
   },
 });
 
@@ -77,7 +95,35 @@ function App() {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <GlobalStyles styles={{
+        body: {
+          background: '#111216',
+          overflow: 'hidden',
+        },
+        '*::-webkit-scrollbar': {
+          width: 10,
+          height: 10,
+        },
+        '*::-webkit-scrollbar-track': {
+          background: '#15171b',
+        },
+        '*::-webkit-scrollbar-thumb': {
+          background: '#3a3e47',
+          borderRadius: 10,
+          border: '2px solid #15171b',
+        },
+        '*::-webkit-scrollbar-thumb:hover': {
+          background: '#4a505c',
+        },
+      }} />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100vh',
+        minWidth: 0,
+        bgcolor: 'background.default',
+        color: 'text.primary',
+      }}>
         
         <ToolBar 
           onFileUpload={onFileUpload}
@@ -86,9 +132,21 @@ function App() {
           onToggleEyedropper={toggleEyedropper}
           onOpenLevels={() => setIsLevelsOpen(true)}
           hasImage={!!originalImageData}
+          imageInfo={imageInfo}
         />
 
-        <Box sx={{ flexGrow: 1, display: 'flex', overflow: 'hidden' }}>
+        <Box sx={{ 
+          flexGrow: 1, 
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            md: '260px minmax(0, 1fr) 300px',
+          },
+          minHeight: 0,
+          overflow: 'hidden',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+        }}>
           <ChannelsPanel 
             imageData={originalImageData}
             channels={channels}
