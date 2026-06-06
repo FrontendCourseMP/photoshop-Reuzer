@@ -103,6 +103,10 @@ export function useImageProcessor() {
     setChannels(prev => ({ ...prev, [channel]: !prev[channel] }));
   }, []);
 
+  const setChannelState = useCallback((nextChannels: ChannelState) => {
+    setChannels(nextChannels);
+  }, []);
+
   const applySettings = useCallback((newSettings: FilterSettings, computeHist: boolean = false) => {
     if (isWorkerBusyRef.current) {
       pendingRequestRef.current = { settings: newSettings, computeHist };
@@ -130,6 +134,7 @@ export function useImageProcessor() {
     displayImageData,
     channels,
     toggleChannel,
+    setChannels: setChannelState,
     levelsSettings,
     setLevelsSettings,
     histograms,

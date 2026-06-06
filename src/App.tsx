@@ -47,6 +47,7 @@ function App() {
     displayImageData, 
     channels, 
     toggleChannel,
+    setChannels,
     levelsSettings,
     setLevelsSettings,
     histograms,
@@ -66,13 +67,14 @@ function App() {
       file,
       (imageData, info) => {
         setOriginalImageData(imageData);
+        setChannels({ r: true, g: true, b: true, a: info.hasAlpha });
         setImageInfo(info);
         setPickedPixel(null);
       },
       (error) => alert(error)
     );
     event.target.value = '';
-  }, [setOriginalImageData]);
+  }, [setOriginalImageData, setChannels]);
 
   const onDownload = useCallback((format: 'png' | 'jpg' | 'gb7') => {
     if (displayImageData) {
@@ -85,14 +87,14 @@ function App() {
   }, [displayImageData]);
 
   const onPixelClick = useCallback((x: number, y: number) => {
-    if (!originalImageData) return;
-    const index = (y * originalImageData.width + x) * 4;
-    const r = originalImageData.data[index];
-    const g = originalImageData.data[index + 1];
-    const b = originalImageData.data[index + 2];
-    const a = originalImageData.data[index + 3];
+    if (!displayImageData) return;
+    const index = (y * displayImageData.width + x) * 4;
+    const r = displayImageData.data[index];
+    const g = displayImageData.data[index + 1];
+    const b = displayImageData.data[index + 2];
+    const a = displayImageData.data[index + 3];
     setPickedPixel({ x, y, r, g, b, a });
-  }, [originalImageData]);
+  }, [displayImageData]);
 
   const toggleEyedropper = useCallback(() => {
     setIsEyedropperActive(prev => !prev);
@@ -155,8 +157,10 @@ function App() {
         }}>
           <ChannelsPanel 
             imageData={originalImageData}
+            imageInfo={imageInfo}
             channels={channels}
             onToggle={toggleChannel}
+            onChange={setChannels}
           />
 
           <ImageCanvas 

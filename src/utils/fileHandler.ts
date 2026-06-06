@@ -1,5 +1,5 @@
 import { decodeGB7, encodeGB7 } from './gb7';
-import type { ImageFormat, ImageInfo } from '../types/image';
+import type { ImageColorModel, ImageFormat, ImageInfo } from '../types/image';
 
 export const handleImageFile = (
   file: File,
@@ -18,8 +18,11 @@ export const handleImageFile = (
           depth: 7,
           depthLabel: info.hasMask ? '7 bit + mask' : '7 bit',
           format: 'GB7',
+          colorModel: info.hasMask ? 'grayscale-alpha' : 'grayscale',
           fileName: file.name,
           fileSize: file.size,
+          hasAlpha: info.hasMask,
+          isGrayscale: true,
           hasMask: info.hasMask,
         });
       } catch (err) {
@@ -37,6 +40,8 @@ export const handleImageFile = (
         const width = parsedInfo?.width ?? imageData.width;
         const height = parsedInfo?.height ?? imageData.height;
         const depth = parsedInfo?.depth ?? (format === 'PNG' ? 32 : 24);
+        const hasAlphaPixels = hasTransparentPixels(imageData.data);
+        const colorModel = resolveColorModel(parsedInfo?.colorModel, hasAlphaPixels);
 
         onLoad(imageData, {
           width,
@@ -44,8 +49,11 @@ export const handleImageFile = (
           depth,
           depthLabel: `${depth} bit`,
           format,
+          colorModel,
           fileName: file.name,
           fileSize: file.size,
+          hasAlpha: colorModel === 'rgba' || colorModel === 'grayscale-alpha',
+          isGrayscale: colorModel === 'grayscale' || colorModel === 'grayscale-alpha',
         });
       }, onError);
     }, onError);
@@ -150,7 +158,7 @@ const loadRasterImage = (
   img.src = url;
 };
 
-const parsePngInfo = (buffer: ArrayBuffer): { width: number; height: number; depth: number } | null => {
+const parsePngInfo = (buffer: ArrayBuffer): { width: number; height: number; depth: number; colorModel: ImageColorModel } | null => {
   if (buffer.byteLength < 33) return null;
 
   const bytes = new Uint8Array(buffer);
@@ -171,15 +179,23 @@ const parsePngInfo = (buffer: ArrayBuffer): { width: number; height: number; dep
     6: 4,
   };
   const samples = samplesByColorType[colorType] ?? 4;
+  const colorModelByType: Record<number, ImageColorModel> = {
+    0: 'grayscale',
+    2: 'rgb',
+    3: 'rgb',
+    4: 'grayscale-alpha',
+    6: 'rgba',
+  };
 
   return {
     width,
     height,
     depth: bitDepth * samples,
+    colorModel: colorModelByType[colorType] ?? 'rgba',
   };
 };
 
-const parseJpegInfo = (buffer: ArrayBuffer): { width: number; height: number; depth: number } | null => {
+const parseJpegInfo = (buffer: ArrayBuffer): { width: number; height: number; depth: number; colorModel: ImageColorModel } | null => {
   const bytes = new Uint8Array(buffer);
   if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
 
@@ -209,6 +225,7 @@ const parseJpegInfo = (buffer: ArrayBuffer): { width: number; height: number; de
         width,
         height,
         depth: precision * components,
+        colorModel: components === 1 ? 'grayscale' : 'rgb',
       };
     }
 
@@ -232,4 +249,26 @@ const readAscii = (bytes: Uint8Array, offset: number, length: number) => {
   }
 
   return result;
+};
+
+const hasTransparentPixels = (data: Uint8ClampedArray): boolean => {
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 255) return true;
+  }
+
+  return false;
+};
+
+const resolveColorModel = (
+  parsedColorModel: ImageColorModel | undefined,
+  hasAlphaPixels: boolean
+): ImageColorModel => {
+  if (!parsedColorModel || parsedColorModel === 'none') {
+    return hasAlphaPixels ? 'rgba' : 'rgb';
+  }
+
+  if (parsedColorModel === 'rgb' && hasAlphaPixels) return 'rgba';
+  if (parsedColorModel === 'grayscale' && hasAlphaPixels) return 'grayscale-alpha';
+
+  return parsedColorModel;
 };
